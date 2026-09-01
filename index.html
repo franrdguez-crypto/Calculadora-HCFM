@@ -115,25 +115,13 @@
         <section class="panel results-panel" id="results-section">
             <h2 class="panel-title no-print">2. Resultados del Cálculo</h2>
             
-            <!-- Cabecera de reporte para impresión -->
-            <div class="print-header only-print">
-                <h2>INFORME TÉCNICO DE RIESGO DE INCENDIO FORESTAL</h2>
-                <p><strong>Metodología:</strong> Tablas Oficiales del ICONA (1993)</p>
-                <div class="print-meta-grid">
-                    <div><strong>Fecha del Incidente:</strong> <span id="print-date">-</span></div>
-                    <div><strong>Hora Local:</strong> <span id="print-time">-</span></div>
-                    <div><strong>Hora Solar Calculada:</strong> <span id="print-solar-time">-</span></div>
-                    <div><strong>Ajuste Horario:</strong> <span id="print-dst-status">-</span></div>
-                    <div><strong>Temperatura:</strong> <span id="print-temp">-</span> ºC</div>
-                    <div><strong>Humedad Relativa:</strong> <span id="print-rh">-</span> %</div>
-                    <div><strong>Exposición/Pendiente:</strong> <span id="print-terrain">-</span></div>
-                    <div><strong>Sombreado:</strong> <span id="print-shading">-</span></div>
-                    <div><strong>Viento:</strong> <span id="print-wind">-</span> (<span id="print-wind-type">-</span>)</div>
-                </div>
+            <!-- Contenedor del Informe Técnico-Pericial para Impresión / PDF -->
+            <div id="print-report-container" class="print-report-area only-print">
+                <!-- Se genera dinámicamente mediante app.js -->
             </div>
 
             <!-- Bloque de Resultados Destacados -->
-            <div class="results-grid">
+            <div class="results-grid no-print">
                 <!-- Humedad Fina Muerta -->
                 <div class="result-card" id="card-hcfm">
                     <span class="card-icon">💧</span>
@@ -166,7 +154,7 @@
             </div>
 
             <!-- Trazabilidad del Cálculo (Cómo se calculó) -->
-            <div class="calculation-trace">
+            <div class="calculation-trace no-print">
                 <h3 class="trace-title">Trazabilidad del Cálculo Técnico</h3>
                 <ol class="trace-list" id="trace-container">
                     <li>Rellene el formulario para visualizar los pasos técnicos de la tabla.</li>

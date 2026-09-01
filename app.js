@@ -488,19 +488,453 @@ function calculate() {
     const traceContainer = document.getElementById('trace-container');
     traceContainer.innerHTML = traces.map(t => `<li>${t}</li>`).join('');
 
-    // Actualizar campos ocultos de impresión
-    document.getElementById('print-date').innerText = dateStr;
-    document.getElementById('print-time').innerText = timeStr;
-    document.getElementById('print-solar-time').innerText = solarInfo.formatted;
-    document.getElementById('print-dst-status').innerText = solarInfo.isDST ? "Horario de Verano (DST)" : "Horario de Invierno (Estándar)";
-    document.getElementById('print-temp').innerText = temp;
-    document.getElementById('print-rh').innerText = rh;
-    document.getElementById('print-shading').innerText = `${shading}% (${shading <= 50 ? 'Expuesto / Solana' : 'Sombreado / Umbría'})`;
-    document.getElementById('print-wind').innerText = `${wind} km/h`;
-    document.getElementById('print-wind-type').innerText = windType === 'terral' ? 'Viento Terral' : 'Vientos no terrales';
+    // Generar el Informe Técnico-Pericial Oficial para Impresión / PDF
+    renderPrintReport({
+        dateStr,
+        timeStr,
+        solarInfo,
+        isDay,
+        temp,
+        rh,
+        aspect,
+        slope,
+        shading,
+        wind,
+        windType,
+        month,
+        monthName,
+        basicHCFM,
+        correction,
+        finalHCFM,
+        correctionTableCode,
+        pig,
+        dangerLevel,
+        tempIdx: getTempIndex(temp, isDay),
+        rhIdx: getRHIndex(rh),
+        hourCol: isDay ? Math.floor((solarInfo.hour - 8) / 2) : -1,
+        shadingGroupKey,
+        shadingText,
+        tempRowKey,
+        hcfmColInfo,
+        pigRow,
+        windCol
+    });
+}
 
-    const slopeLabel = slope === "flat_gentle" ? "Suave 0-30%" : "Pronunciada >30%";
-    document.getElementById('print-terrain').innerText = `Exp. ${aspect} / Pendiente ${slopeLabel}`;
+// === GENERADOR DEL INFORME TÉCNICO-PERICIAL OFICIAL (PDF / IMPRESIÓN) ===
+
+function renderPrintReport(data) {
+    const container = document.getElementById('print-report-container');
+    if (!container) return;
+
+    // 1. Tabla A.1 o A.5 (Humedad Básica)
+    const rhCols = ['0-4%', '5-9%', '10-14%', '15-19%', '20-24%', '25-29%', '30-34%', '35-39%', '40-44%', '45-49%', '50-54%', '55-59%', '60-64%', '65-69%', '70-74%', '75-79%', '80-84%', '85-89%', '90-94%', '95-99%', '100%'];
+    let basicTableHtml = "";
+
+    if (data.isDay) {
+        const tempRowsA1 = ['<0 ºC', '0-9 ºC', '10-20 ºC', '21-31 ºC', '32-42 ºC', '>42 ºC'];
+        let thead = `<tr><th>Temp. \\ HR</th>` + rhCols.map((c, idx) => `<th class="${idx === data.rhIdx ? 'col-active' : ''}">${c}</th>`).join('') + `</tr>`;
+        let tbody = TABLA_A1.map((row, rIdx) => {
+            const isRowActive = rIdx === data.tempIdx;
+            const cells = row.map((val, cIdx) => {
+                const isCellActive = isRowActive && cIdx === data.rhIdx;
+                if (isCellActive) {
+                    return `<td class="cell-active"><span class="highlight-circle">${val}</span></td>`;
+                }
+                return `<td>${val}</td>`;
+            }).join('');
+            return `<tr><th class="row-header ${isRowActive ? 'row-active' : ''}">${tempRowsA1[rIdx]}</th>${cells}</tr>`;
+        }).join('');
+
+        basicTableHtml = `
+            <div class="rpt-table-title">TABLA A.1: Humedad Básica del Combustible Fino Muerto (Día: 8:00 a 20:00 h solar)</div>
+            <table class="rpt-data-table">
+                <thead>${thead}</thead>
+                <tbody>${tbody}</tbody>
+            </table>
+        `;
+    } else {
+        const tempRowsA5 = ['0-9 ºC', '10-20 ºC', '21-31 ºC', '32-42 ºC', '>42 ºC'];
+        let thead = `<tr><th>Temp. \\ HR</th>` + rhCols.map((c, idx) => `<th class="${idx === data.rhIdx ? 'col-active' : ''}">${c}</th>`).join('') + `</tr>`;
+        let tbody = TABLA_A5.map((row, rIdx) => {
+            const isRowActive = rIdx === data.tempIdx;
+            const cells = row.map((val, cIdx) => {
+                const isCellActive = isRowActive && cIdx === data.rhIdx;
+                if (isCellActive) {
+                    return `<td class="cell-active"><span class="highlight-circle">${val}</span></td>`;
+                }
+                return `<td>${val}</td>`;
+            }).join('');
+            return `<tr><th class="row-header ${isRowActive ? 'row-active' : ''}">${tempRowsA5[rIdx]}</th>${cells}</tr>`;
+        }).join('');
+
+        basicTableHtml = `
+            <div class="rpt-table-title">TABLA A.5: Humedad Básica del Combustible Fino Muerto (Noche: 20:00 a 8:00 h solar)</div>
+            <div class="rpt-table-subtitle">Nota: Durante la noche no se precisa aplicar corrección topográfica posterior.</div>
+            <table class="rpt-data-table">
+                <thead>${thead}</thead>
+                <tbody>${tbody}</tbody>
+            </table>
+        `;
+    }
+
+    // 2. Tabla A.2, A.3 o A.4 (Corrección Estacional)
+    let correctionSectionHtml = "";
+    if (data.isDay) {
+        let seasonalTable;
+        let tableTitle = "";
+        if (data.month === 5 || data.month === 6 || data.month === 7) {
+            seasonalTable = CORRECTIONS_A3;
+            tableTitle = "TABLA A.3: Sumando Corrector (Mayo - Junio - Julio)";
+        } else if (data.month === 11 || data.month === 12 || data.month === 1) {
+            seasonalTable = CORRECTIONS_A4;
+            tableTitle = "TABLA A.4: Sumando Corrector (Noviembre - Diciembre - Enero)";
+        } else {
+            seasonalTable = CORRECTIONS_A2;
+            tableTitle = "TABLA A.2: Sumando Corrector (Febrero - Abril / Agosto - Octubre)";
+        }
+
+        const hourLabels = ["08:00 - 10:00", "10:00 - 12:00", "12:00 - 14:00", "14:00 - 16:00", "16:00 - 18:00", "18:00 - 20:00"];
+        const aspects = [
+            { code: 'N', label: 'Norte (N)' },
+            { code: 'E', label: 'Este (E)' },
+            { code: 'S', label: 'Sur (S)' },
+            { code: 'O', label: 'Oeste (O)' }
+        ];
+
+        const isShadedCalc = data.shading > 50;
+        let thead = `<tr><th>Exposición</th><th>Pendiente</th>` + hourLabels.map((hl, hIdx) => `<th class="${hIdx === data.hourCol ? 'col-active' : ''}">${hl}</th>`).join('') + `</tr>`;
+
+        // Bloque 1: Expuesto
+        let tbodyExpuesto = "";
+        aspects.forEach(asp => {
+            // Suave (0-30%)
+            const isRowActiveGentle = (!isShadedCalc) && (data.aspect === asp.code) && (data.slope === 'flat_gentle');
+            const cellsGentle = seasonalTable.exposed[asp.code].flat_gentle.map((val, hIdx) => {
+                const isCellActive = isRowActiveGentle && (hIdx === data.hourCol);
+                return isCellActive ? `<td class="cell-active"><span class="highlight-circle">${val}</span></td>` : `<td>${val}</td>`;
+            }).join('');
+
+            // Pronunciada (>30%)
+            const isRowActiveSteep = (!isShadedCalc) && (data.aspect === asp.code) && (data.slope === 'steep');
+            const cellsSteep = seasonalTable.exposed[asp.code].steep.map((val, hIdx) => {
+                const isCellActive = isRowActiveSteep && (hIdx === data.hourCol);
+                return isCellActive ? `<td class="cell-active"><span class="highlight-circle">${val}</span></td>` : `<td>${val}</td>`;
+            }).join('');
+
+            tbodyExpuesto += `
+                <tr>
+                    <th rowspan="2" class="row-header ${(!isShadedCalc && data.aspect === asp.code) ? 'row-active' : ''}">${asp.label}</th>
+                    <td class="${isRowActiveGentle ? 'row-active' : ''}">0 - 30%</td>
+                    ${cellsGentle}
+                </tr>
+                <tr>
+                    <td class="${isRowActiveSteep ? 'row-active' : ''}">&gt; 30%</td>
+                    ${cellsSteep}
+                </tr>
+            `;
+        });
+
+        // Bloque 2: Sombreado
+        let tbodySombreado = "";
+        aspects.forEach(asp => {
+            const isRowActiveShaded = isShadedCalc && (data.aspect === asp.code);
+            const cellsShaded = seasonalTable.shaded[asp.code].map((val, hIdx) => {
+                const isCellActive = isRowActiveShaded && (hIdx === data.hourCol);
+                return isCellActive ? `<td class="cell-active"><span class="highlight-circle">${val}</span></td>` : `<td>${val}</td>`;
+            }).join('');
+
+            tbodySombreado += `
+                <tr>
+                    <th class="row-header ${isRowActiveShaded ? 'row-active' : ''}">${asp.label}</th>
+                    <td class="${isRowActiveShaded ? 'row-active' : ''}">0%+</td>
+                    ${cellsShaded}
+                </tr>
+            `;
+        });
+
+        correctionSectionHtml = `
+            <div class="rpt-step-card">
+                <div class="rpt-step-header">
+                    <span>PASO 3: Corrección por Topografía, Sombreado y Mes (${tableTitle.split(':')[0]})</span>
+                    <span class="rpt-step-badge">Mes: ${data.monthName}</span>
+                </div>
+                <p class="rpt-text">
+                    Al encontrarse el suceso en el mes de <strong>${data.monthName}</strong>, se aplica la <strong>${tableTitle.split(':')[0]}</strong>. Se determina el sumando corrector según la exposición (<strong>${data.aspect}</strong>), pendiente (<strong>${data.slope === 'flat_gentle' ? '0-30%' : '>30%'}</strong>), sombreado (<strong>${data.shading}% ${data.shading <= 50 ? 'Expuesto ≤50%' : 'Sombreado >50%'}</strong>) y tramo solar (<strong>${hourLabels[data.hourCol]}</strong>):
+                </p>
+                <div class="rpt-table-title">${tableTitle}</div>
+                <div class="rpt-table-subtitle">Sección 1: Expuesto (Menos del 50% de los combustibles en sombra)</div>
+                <table class="rpt-data-table">
+                    <thead>${thead}</thead>
+                    <tbody>${tbodyExpuesto}</tbody>
+                </table>
+                <div class="rpt-table-subtitle" style="margin-top: 6px;">Sección 2: Sombreado (Más del 50% de los combustibles en sombra o nublado)</div>
+                <table class="rpt-data-table">
+                    <thead>${thead}</thead>
+                    <tbody>${tbodySombreado}</tbody>
+                </table>
+                <div class="rpt-result-box">
+                    <strong>Cálculo de la Humedad Final:</strong> Humedad Básica (<strong>${data.basicHCFM}%</strong>) + Corrección Topográfica (+<span class="val-highlight">${data.correction}%</span>) = <strong>HCFM Final: <span class="val-highlight">${data.finalHCFM}%</span></strong>
+                </div>
+            </div>
+        `;
+    } else {
+        correctionSectionHtml = `
+            <div class="rpt-step-card">
+                <div class="rpt-step-header">
+                    <span>PASO 3: Corrección Topográfica y Estacional (Régimen Nocturno)</span>
+                    <span class="rpt-step-badge">Noche (20:00 a 08:00 h solar)</span>
+                </div>
+                <p class="rpt-text">
+                    Al haberse originado el fuego en franja nocturna (<strong>${data.solarInfo.formatted} h solar</strong>), la ausencia de radiación solar directa hace que el combustible fino alcance el equilibrio higrométrico directamente con la masa de aire. Conforme a la metodología oficial, <strong>no se precisa aplicar sumando corrector (+0%)</strong>.
+                </p>
+                <div class="rpt-result-box">
+                    <strong>HCFM Final (Nocturna):</strong> Humedad Básica = <strong><span class="val-highlight">${data.finalHCFM}%</span></strong>
+                </div>
+            </div>
+        `;
+    }
+
+    // 3. Tabla A.6 (Probabilidad de Ignición)
+    const hcfmColLabels = ['2%', '3%', '4%', '5%', '6%', '7%', '8%', '9%', '10%', '11%', '12%', '13%', '14%', '15%', '16%', '17%'];
+    const tempRowsA6 = [
+        { key: 'row_40_plus', label: '40+ ºC' },
+        { key: 'row_35_40',   label: '35 - 40 ºC' },
+        { key: 'row_30_35',   label: '30 - 35 ºC' },
+        { key: 'row_25_30',   label: '25 - 30 ºC' },
+        { key: 'row_20_25',   label: '20 - 25 ºC' },
+        { key: 'row_15_20',   label: '15 - 20 ºC' },
+        { key: 'row_10_15',   label: '10 - 15 ºC' },
+        { key: 'row_5_10',    label: '5 - 10 ºC' },
+        { key: 'row_0_5',     label: '0 - 5 ºC' }
+    ];
+
+    let theadA6 = `<tr><th>Temp. \\ HCFM</th>` + hcfmColLabels.map((c, idx) => `<th class="${idx === data.hcfmColInfo.colIndex ? 'col-active' : ''}">${c}</th>`).join('') + `</tr>`;
+    let tbodyA6 = tempRowsA6.map(rObj => {
+        const isRowActive = rObj.key === data.tempRowKey;
+        const cells = TABLA_A6[data.shadingGroupKey][rObj.key].map((val, cIdx) => {
+            const isCellActive = isRowActive && (cIdx === data.hcfmColInfo.colIndex);
+            if (isCellActive) {
+                return `<td class="cell-active"><span class="highlight-circle">${val}</span></td>`;
+            }
+            return `<td>${val}</td>`;
+        }).join('');
+        return `<tr><th class="row-header ${isRowActive ? 'row-active' : ''}">${rObj.label}</th>${cells}</tr>`;
+    }).join('');
+
+    const pigQualText = data.pig >= 70 ? "Muy Alta (Ignición prácticamente garantizada)" :
+                        data.pig >= 50 ? "Alta (Facilidad de encendido elevada)" :
+                        data.pig >= 20 ? "Moderada (Requiere fuente térmica sostenida)" : "Baja (Ignición improbable)";
+
+    // 4. Tabla A.7 (Índice de Peligro)
+    const windCols = ['0 - 9 km/h', '10 - 19 km/h', '20 - 39 km/h', '≥ 40 km/h'];
+    const pigRowsA7 = [
+        '10 ≤ PIG ≤ 20',
+        '20 < PIG ≤ 50',
+        '50 < PIG < 70',
+        'PIG ≥ 70'
+    ];
+
+    const activeA7Matrix = data.windType === 'terral' ? TABLA_A7_TERRAL : TABLA_A7_NORMAL;
+    const a7Subtitle = data.windType === 'terral' ? "Áreas costeras (Vientos terrales)" : "Zonas del interior y áreas costeras (Vientos no terrales)";
+
+    let theadA7 = `<tr><th>Probabilidad Ignición (PIG)</th>` + windCols.map((wc, idx) => `<th class="${idx === data.windCol ? 'col-active' : ''}">${wc}</th>`).join('') + `</tr>`;
+    let tbodyA7 = activeA7Matrix.map((row, rIdx) => {
+        const isRowActive = rIdx === data.pigRow;
+        const cells = row.map((val, cIdx) => {
+            const isCellActive = isRowActive && (cIdx === data.windCol);
+            if (isCellActive) {
+                return `<td class="cell-active"><span class="highlight-badge-danger">${val}</span></td>`;
+            }
+            return `<td>${val}</td>`;
+        }).join('');
+        return `<tr><th class="row-header ${isRowActive ? 'row-active' : ''}">${pigRowsA7[rIdx]}</th>${cells}</tr>`;
+    }).join('');
+
+    // Calificaciones para conclusiones
+    const hcfmQual = data.finalHCFM <= 4 ? "Crítico (Sequedad extrema, ignición inmediata)" :
+                     data.finalHCFM <= 7 ? "Muy Bajo (Disponibilidad muy alta para el fuego)" :
+                     data.finalHCFM <= 11 ? "Bajo (Combustible seco, ignición y propagación rápida)" :
+                     data.finalHCFM <= 15 ? "Moderado (Combustión lenta o controlable)" : "Alto / Seguro (Ignición muy dificultosa)";
+
+    let badgeClassFinal = "badge-f-prealerta";
+    if (data.dangerLevel === "Alerta") badgeClassFinal = "badge-f-alerta";
+    else if (data.dangerLevel === "Alarma") badgeClassFinal = "badge-f-alarma";
+    else if (data.dangerLevel === "Alarma extrema") badgeClassFinal = "badge-f-alarma-extrema";
+
+    // Dictamen pericial redactado
+    const dictamen = `En el momento y fecha evaluados (${data.dateStr}, ${data.timeStr} h local / ${data.solarInfo.formatted} h solar), el combustible fino forestal en la zona de inicio presentaba un contenido de humedad del <strong>${data.finalHCFM}%</strong>, situándose en umbrales de sequedad clasificados como <strong>${hcfmQual.split('(')[0].trim()}</strong>. Con una temperatura de <strong>${data.temp} ºC</strong>, una humedad relativa del <strong>${data.rh}%</strong> y un sombreado del <strong>${data.shading}%</strong>, la probabilidad de que una fuente de ignición eficaz (chispa, colilla o pavesa) originase una llama activa autosostenida sobre el lecho vegetal era del <strong>${data.pig}%</strong> (${pigQualText.split('(')[0].trim()}). La combinación de dicha receptividad con un viento de <strong>${data.wind} km/h</strong> (${data.windType === 'terral' ? 'régimen terral' : 'régimen no terral'}) determina técnicamente un nivel de riesgo clasificado como <strong>${data.dangerLevel.toUpperCase()}</strong>, implicando: <em>${DANGER_INFO[data.dangerLevel].text}</em>`;
+
+    // Ensamblaje completo del documento
+    container.innerHTML = `
+        <!-- Encabezado del Documento -->
+        <div class="rpt-header">
+            <h1>INFORME TÉCNICO PERICIAL</h1>
+            <h2>ESTIMACIÓN DE LA HUMEDAD DEL COMBUSTIBLE FINO MUERTO (HCFM), PROBABILIDAD DE IGNICIÓN E ÍNDICE DE PELIGRO DE INCENDIO FORESTAL</h2>
+            <div class="rpt-meta-law">(Metodología Oficial en vigor)</div>
+        </div>
+
+        <!-- 1. Fundamento Técnico y Metodología -->
+        <div class="rpt-section">
+            <h3 class="rpt-section-title">1. Fundamento Técnico y Metodología</h3>
+            <p class="rpt-text">
+                El presente informe técnico evalúa la disponibilidad del combustible vegetal forestal para arder en el momento y lugar del inicio del fuego, aplicando el método oficial en vigor.
+            </p>
+            <p class="rpt-text">
+                Se ha utilizado los datos de la estación meteorológica homologada más próxima, tanto en longitud como en altitud, al inicio del incendio.
+            </p>
+            <p class="rpt-text">
+                El parámetro determinante en el inicio de un incendio forestal es la <strong>Humedad del Combustible Fino Muerto (HCFM)</strong>, que corresponde a las ramas finas, hojas secas, acículas y hojarasca de diámetro inferior a 6 mm (combustibles con tiempo de retardo de 1 hora). Estos elementos vegetales responden de manera casi inmediata a las variaciones de temperatura y humedad ambiental, determinando si una fuente de ignición (pavesa, colilla, chispa) puede iniciar una llama autosostenida y con qué velocidad inicial se propagará.
+            </p>
+        </div>
+
+        <!-- 2. Parámetros del Incidente -->
+        <div class="rpt-section">
+            <h3 class="rpt-section-title">2. Parámetros Meteorológicos y Topográficos del Incidente</h3>
+            <table class="rpt-params-table">
+                <tbody>
+                    <tr>
+                        <th>Fecha del Incidente:</th>
+                        <td>${data.dateStr} (Mes: ${data.monthName})</td>
+                    </tr>
+                    <tr>
+                        <th>Hora de la Alarma (Local):</th>
+                        <td>${data.timeStr} h (Hora Solar Calculada: <strong>${data.solarInfo.formatted} h</strong> | ${data.solarInfo.isDST ? 'Horario de verano activo' : 'Horario estándar de invierno'})</td>
+                    </tr>
+                    <tr>
+                        <th>Temperatura Ambiente:</th>
+                        <td><strong>${data.temp} ºC</strong> (Termómetro seco)</td>
+                    </tr>
+                    <tr>
+                        <th>Humedad Relativa del Aire:</th>
+                        <td><strong>${data.rh} %</strong> (Higrómetro)</td>
+                    </tr>
+                    <tr>
+                        <th>Insolación / Sombreado:</th>
+                        <td><strong>${100 - data.shading}% Sol / ${data.shading}% Sombra</strong> (${data.shading <= 50 ? 'Expuesto ≤50% sombra' : 'Sombreado >50% sombra'})</td>
+                    </tr>
+                    <tr>
+                        <th>Orientación y Pendiente:</th>
+                        <td>Exposición: <strong>${data.aspect}</strong> | Pendiente: <strong>${data.slope === 'flat_gentle' ? 'Suave o Llano (0-30%)' : 'Pronunciada (>30%)'}</strong></td>
+                    </tr>
+                    <tr>
+                        <th>Régimen del Viento:</th>
+                        <td>Velocidad: <strong>${data.wind} km/h</strong> | Tipología: <strong>${data.windType === 'terral' ? 'Viento Terral (Costero)' : 'Vientos no terrales (Interior)'}</strong></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 3. Desarrollo Técnico Secuencial -->
+        <div class="rpt-section">
+            <h3 class="rpt-section-title">3. Desarrollo Técnico Secuencial del Cálculo</h3>
+
+            <!-- Paso 1: Hora Solar -->
+            <div class="rpt-step-card">
+                <div class="rpt-step-header">
+                    <span>PASO 1: Determinación de la Hora Solar y Franja Horaria</span>
+                    <span class="rpt-step-badge">${data.isDay ? 'Régimen Diurno' : 'Régimen Nocturno'}</span>
+                </div>
+                <p class="rpt-text">
+                    La radiación solar y la evaporación del combustible dependen de la hora solar. Se convierte la hora oficial local (<strong>${data.timeStr} h</strong>) a hora solar (<strong>${data.solarInfo.formatted} h</strong>), determinando que corresponde a la franja de <strong>${data.isDay ? 'DÍA (08:00 a 20:00 h solar)' : 'NOCHE (20:00 a 08:00 h solar)'}</strong>.
+                </p>
+            </div>
+
+            <!-- Paso 2: Humedad Básica (Tabla A.1 o A.5) -->
+            <div class="rpt-step-card">
+                <div class="rpt-step-header">
+                    <span>PASO 2: Obtención de la Humedad Básica del Combustible (${data.isDay ? 'Tabla A.1' : 'Tabla A.5'})</span>
+                    <span class="rpt-step-badge">Temp: ${data.temp}ºC | HR: ${data.rh}%</span>
+                </div>
+                <p class="rpt-text">
+                    Cruzando en la tabla la fila de temperatura ambiente (<strong>${data.temp} ºC</strong>) con la columna de humedad relativa (<strong>${data.rh} %</strong>), se obtiene la humedad básica del combustible fino:
+                </p>
+                ${basicTableHtml}
+                <div class="rpt-result-box">
+                    <strong>Humedad Básica Obtenida:</strong> <span class="val-highlight">${data.basicHCFM} %</span>
+                </div>
+            </div>
+
+            <!-- Paso 3: Corrección (Tablas A.2, A.3 o A.4) -->
+            ${correctionSectionHtml}
+
+            <!-- Paso 4: Probabilidad de Ignición (Tabla A.6) -->
+            <div class="rpt-step-card">
+                <div class="rpt-step-header">
+                    <span>PASO 4: Determinación de la Probabilidad de Ignición (Tabla A.6)</span>
+                    <span class="rpt-step-badge">HCFM: ${data.finalHCFM}% | Sombreado: ${data.shading}%</span>
+                </div>
+                <p class="rpt-text">
+                    La <strong>Probabilidad de Ignición (PIG)</strong> estima la probabilidad porcentual (0 a 100%) de que un foco térmico (pavesa, colilla, chispa) inicie una llama sostenida al contactar con el combustible fino. En la <strong>Tabla A.6</strong>, seleccionando el grupo de sombreado (<strong>${data.shadingText}</strong>) y cruzando la fila de temperatura (<strong>${data.temp} ºC</strong>) con la columna de HCFM calculada (<strong>${data.hcfmColInfo.clampedValue} %</strong>):
+                </p>
+                <div class="rpt-table-title">TABLA A.6: Probabilidad de Ignición (%)</div>
+                <div class="rpt-table-subtitle">Grupo de Sombreado: ${data.shadingText}</div>
+                <table class="rpt-data-table">
+                    <thead>${theadA6}</thead>
+                    <tbody>${tbodyA6}</tbody>
+                </table>
+                <div class="rpt-result-box">
+                    <strong>Probabilidad de Ignición (PIG):</strong> <span class="val-highlight">${data.pig} %</span> (${pigQualText})
+                </div>
+            </div>
+
+            <!-- Paso 5: Índice de Peligro (Tabla A.7) -->
+            <div class="rpt-step-card">
+                <div class="rpt-step-header">
+                    <span>PASO 5: Determinación del Índice de Peligro Operativo (Tabla A.7)</span>
+                    <span class="rpt-step-badge">PIG: ${data.pig}% | Viento: ${data.wind} km/h</span>
+                </div>
+                <p class="rpt-text">
+                    Cruzando la Probabilidad de Ignición (<strong>${data.pig}%</strong>) con la velocidad del viento (<strong>${data.wind} km/h</strong>) bajo el régimen de <strong>${data.windType === 'terral' ? 'vientos terrales' : 'vientos no terrales'}</strong>:
+                </p>
+                <div class="rpt-table-title">TABLA A.7: Interpretación del Índice de Peligro</div>
+                <div class="rpt-table-subtitle">${a7Subtitle}</div>
+                <table class="rpt-data-table">
+                    <thead>${theadA7}</thead>
+                    <tbody>${tbodyA7}</tbody>
+                </table>
+                <div class="rpt-result-box">
+                    <strong>Nivel de Peligro Resultante:</strong> <span class="val-highlight">${data.dangerLevel.toUpperCase()}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Conclusiones Técnico-Periciales -->
+        <div class="rpt-section">
+            <h3 class="rpt-section-title">4. Conclusiones Técnico-Periciales</h3>
+            <table class="rpt-conclusions-table">
+                <thead>
+                    <tr>
+                        <th style="width: 38%;">Parámetro Evaluado</th>
+                        <th style="width: 20%;" class="center">Resultado Obtenido</th>
+                        <th style="width: 42%;">Calificación Técnica</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Humedad del Combustible (HCFM)</strong></td>
+                        <td class="center"><strong>${data.finalHCFM} %</strong></td>
+                        <td>${hcfmQual}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Probabilidad de Ignición (PIG)</strong></td>
+                        <td class="center"><strong>${data.pig} %</strong></td>
+                        <td>${pigQualText}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Índice de Peligro Operativo</strong></td>
+                        <td class="center"><span class="final-badge ${badgeClassFinal}">${data.dangerLevel}</span></td>
+                        <td>${DANGER_INFO[data.dangerLevel].text}</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="rpt-dictamen-box">
+                <div class="rpt-dictamen-title">Dictamen Pericial Sintético</div>
+                <p class="rpt-dictamen-text">${dictamen}</p>
+            </div>
+        </div>
+    `;
 }
 
 // === SISTEMA DE HISTORIAL (LOCALSTORAGE) ===

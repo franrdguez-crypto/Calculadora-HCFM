@@ -591,108 +591,368 @@ select:focus {
     display: none;
 }
 
-/* Estilos de Impresión (@media print) */
+/* Estilos de Impresión y Generación del Informe Pericial (@media print) */
 @media print {
-    body {
-        background-color: #ffffff;
-        color: #000000;
-        padding: 0;
+    @page {
+        size: A4 portrait;
+        margin: 10mm 12mm 10mm 12mm;
     }
 
-    .no-print {
-        display: none !important;
-    }
-
-    .only-print {
-        display: block !important;
-    }
-
-    .app-main {
-        display: block;
-    }
-
-    .panel {
-        border: none !important;
-        background: none !important;
-        box-shadow: none !important;
+    html, body {
+        background-color: #ffffff !important;
+        color: #111111 !important;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif !important;
+        font-size: 9pt;
+        line-height: 1.4;
         padding: 0 !important;
         margin: 0 !important;
+        width: 100% !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
     }
 
-    /* Estilo del Reporte Físico */
-    .print-header {
-        border-bottom: 2px solid #000000;
-        padding-bottom: 1rem;
-        margin-bottom: 2rem;
+    /* Ocultar absolutamente todos los elementos de la interfaz interactiva */
+    .app-header,
+    .input-panel,
+    .panel-title,
+    .results-grid,
+    .action-buttons,
+    .calculation-trace,
+    .history-panel,
+    .app-footer,
+    .no-print,
+    header,
+    footer,
+    form {
+        display: none !important;
+        visibility: hidden !important;
+        height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .app-main, .container, .results-panel {
+        display: block !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        border: none !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    /* Mostrar única y exclusivamente el contenedor del informe pericial */
+    #print-report-container.print-report-area {
+        display: block !important;
+        visibility: visible !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        color: #111111 !important;
+    }
+
+    /* Encabezado del Documento */
+    .rpt-header {
+        border-bottom: 2.5px solid #111111;
+        padding-bottom: 0.8rem;
+        margin-bottom: 1.2rem;
         text-align: center;
     }
 
-    .print-header h2 {
-        font-family: var(--font-titles);
-        font-size: 1.6rem;
+    .rpt-header h1 {
+        font-family: 'Outfit', 'Inter', Arial, sans-serif;
+        font-size: 14pt;
+        font-weight: 800;
+        letter-spacing: -0.2px;
         color: #000000;
         margin-bottom: 0.2rem;
+        text-transform: uppercase;
     }
 
-    .print-header p {
-        font-size: 0.9rem;
+    .rpt-header h2 {
+        font-family: 'Inter', Arial, sans-serif;
+        font-size: 9.5pt;
+        font-weight: 600;
         color: #333333;
+        line-height: 1.3;
     }
 
-    .print-meta-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr 1fr;
-        gap: 0.8rem;
-        margin-top: 1.5rem;
-        text-align: left;
-        font-size: 0.85rem;
-        background-color: #f5f5f5;
-        padding: 1rem;
-        border-radius: 6px;
-        border: 1px solid #ddd;
+    .rpt-header .rpt-meta-law {
+        font-size: 8pt;
+        font-style: italic;
+        color: #555555;
+        margin-top: 0.3rem;
     }
 
-    .results-grid {
-        grid-template-columns: 1fr 1fr;
-        gap: 1.5rem;
-        margin-top: 2rem;
-        margin-bottom: 2rem;
-    }
-
-    .result-card {
-        border: 1px solid #000000 !important;
-        background-color: #ffffff !important;
-        color: #000000 !important;
-        padding: 1.5rem !important;
-    }
-
-    .result-value {
-        color: #000000 !important;
-        font-size: 2rem !important;
-        font-weight: 700 !important;
-        text-shadow: none !important;
-    }
-
-    .card-icon {
-        display: none;
-    }
-
-    .calculation-trace {
-        border: 1px solid #ddd !important;
-        background-color: #fafafa !important;
-        margin-top: 2rem;
+    /* Secciones del Informe */
+    .rpt-section {
+        margin-bottom: 1.1rem;
         page-break-inside: avoid;
+        break-inside: avoid;
     }
 
-    .trace-title {
-        color: #000000 !important;
+    .rpt-section-title {
+        font-family: 'Outfit', 'Inter', Arial, sans-serif;
+        font-size: 10.5pt;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: #000000;
+        border-bottom: 1.5px solid #333333;
+        padding-bottom: 0.25rem;
+        margin-bottom: 0.6rem;
     }
 
-    .trace-list li {
-        color: #333333 !important;
+    .rpt-text {
+        font-size: 8.8pt;
+        line-height: 1.45;
+        text-align: justify;
+        color: #222222;
+        margin-bottom: 0.5rem;
     }
 
-    .trace-list li strong {
-        color: #000000 !important;
+    /* Tabla de Parámetros Iniciales */
+    .rpt-params-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 8.5pt;
+        margin-top: 0.4rem;
+        margin-bottom: 0.8rem;
+    }
+
+    .rpt-params-table th,
+    .rpt-params-table td {
+        border: 1px solid #cccccc;
+        padding: 4px 8px;
+        text-align: left;
+    }
+
+    .rpt-params-table th {
+        background-color: #f2f5f2 !important;
+        font-weight: 700;
+        color: #111111;
+        width: 32%;
+    }
+
+    .rpt-params-table td {
+        color: #222222;
+    }
+
+    /* Bloques de Pasos y Metodología */
+    .rpt-step-card {
+        border: 1px solid #e0e0e0;
+        background-color: #fafbfa !important;
+        border-radius: 4px;
+        padding: 0.6rem 0.8rem;
+        margin-bottom: 0.9rem;
+        page-break-inside: avoid;
+        break-inside: avoid;
+    }
+
+    .rpt-step-header {
+        font-family: 'Outfit', 'Inter', Arial, sans-serif;
+        font-size: 9.5pt;
+        font-weight: 700;
+        color: #000000;
+        margin-bottom: 0.4rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .rpt-step-badge {
+        font-size: 7.5pt;
+        font-weight: 700;
+        padding: 2px 6px;
+        border-radius: 3px;
+        background-color: #e8f5e9 !important;
+        color: #2e7d32 !important;
+        border: 1px solid #a5d6a7;
+    }
+
+    .rpt-table-title {
+        font-size: 8.5pt;
+        font-weight: 700;
+        color: #1b5e20;
+        margin-top: 0.5rem;
+        margin-bottom: 0.3rem;
+        text-align: center;
+    }
+
+    .rpt-table-subtitle {
+        font-size: 7.5pt;
+        color: #555555;
+        text-align: center;
+        margin-bottom: 0.4rem;
+        font-style: italic;
+    }
+
+    /* Tablas Oficiales ICONA para Impresión */
+    .rpt-data-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 7pt;
+        text-align: center;
+        margin: 0.3rem 0;
+        background-color: #ffffff !important;
+    }
+
+    .rpt-data-table th,
+    .rpt-data-table td {
+        border: 1px solid #b0bec5;
+        padding: 2.5px 1.5px;
+        min-width: 14px;
+    }
+
+    .rpt-data-table th {
+        background-color: #eceff1 !important;
+        font-weight: 700;
+        color: #263238;
+    }
+
+    .rpt-data-table th.row-header {
+        text-align: left;
+        padding-left: 4px;
+        background-color: #f5f7f8 !important;
+        white-space: nowrap;
+    }
+
+    .rpt-data-table th.col-active {
+        background-color: #ffebee !important;
+        color: #c62828 !important;
+        font-weight: 800;
+        border-top: 2px solid #d32f2f;
+        border-bottom: 2px solid #d32f2f;
+    }
+
+    .rpt-data-table th.row-active {
+        background-color: #ffebee !important;
+        color: #c62828 !important;
+        font-weight: 800;
+        border-left: 2px solid #d32f2f;
+        border-right: 2px solid #d32f2f;
+    }
+
+    .rpt-data-table td.cell-active {
+        background-color: #fff8e1 !important;
+        font-weight: 800;
+    }
+
+    /* Círculo Rojo de Resaltado Exacto */
+    .highlight-circle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 20px;
+        height: 18px;
+        border: 2px solid #d32f2f;
+        border-radius: 50%;
+        color: #b71c1c !important;
+        font-weight: 900 !important;
+        background-color: rgba(211, 47, 47, 0.12) !important;
+        padding: 0 3px;
+        margin: 0 auto;
+        box-sizing: border-box;
+    }
+
+    .highlight-badge-danger {
+        display: inline-block;
+        border: 2px solid #d32f2f;
+        border-radius: 4px;
+        padding: 2px 6px;
+        font-weight: 900 !important;
+        color: #b71c1c !important;
+        background-color: #ffebee !important;
+        text-transform: uppercase;
+        font-size: 7.5pt;
+    }
+
+    /* Cajas de Resultado y Fórmulas */
+    .rpt-result-box {
+        margin-top: 0.5rem;
+        background-color: #f1f8e9 !important;
+        border-left: 3.5px solid #2e7d32;
+        padding: 5px 10px;
+        font-size: 8.5pt;
+        color: #1b5e20;
+    }
+
+    .rpt-result-box strong {
+        color: #000000;
+    }
+
+    .rpt-result-box .val-highlight {
+        color: #c62828;
+        font-weight: 800;
+    }
+
+    /* Tabla de Conclusiones */
+    .rpt-conclusions-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 8.5pt;
+        margin-top: 0.5rem;
+        margin-bottom: 0.8rem;
+    }
+
+    .rpt-conclusions-table th,
+    .rpt-conclusions-table td {
+        border: 1.5px solid #455a64;
+        padding: 6px 10px;
+        text-align: left;
+    }
+
+    .rpt-conclusions-table th {
+        background-color: #eceff1 !important;
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 8pt;
+        color: #263238;
+    }
+
+    .rpt-conclusions-table td.center {
+        text-align: center;
+    }
+
+    .rpt-conclusions-table .final-badge {
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-weight: 800;
+        font-size: 8.5pt;
+        text-transform: uppercase;
+    }
+
+    .badge-f-prealerta { background-color: #e8f5e9 !important; color: #2e7d32 !important; border: 1px solid #a5d6a7; }
+    .badge-f-alerta { background-color: #fff3e0 !important; color: #e65100 !important; border: 1px solid #ffcc80; }
+    .badge-f-alarma { background-color: #ffebee !important; color: #c62828 !important; border: 1px solid #ef9a9a; }
+    .badge-f-alarma-extrema { background-color: #f3e5f5 !important; color: #6a1b9a !important; border: 1px solid #ce93d8; }
+
+    /* Recuadro de Dictamen Pericial */
+    .rpt-dictamen-box {
+        background-color: #fafafa !important;
+        border: 1.5px solid #2e7d32;
+        border-radius: 4px;
+        padding: 8px 12px;
+        margin-top: 0.8rem;
+        page-break-inside: avoid;
+        break-inside: avoid;
+    }
+
+    .rpt-dictamen-title {
+        font-family: 'Outfit', 'Inter', Arial, sans-serif;
+        font-size: 9pt;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: #1b5e20;
+        margin-bottom: 0.3rem;
+    }
+
+    .rpt-dictamen-text {
+        font-size: 8.5pt;
+        line-height: 1.45;
+        text-align: justify;
+        color: #111111;
     }
 }
+
