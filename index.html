@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora HCFM - Método Oficial ICONA</title>
+    <meta name="description" content="Calculadora de la Humedad del Combustible Fino Muerto (HCFM), Probabilidad de Ignición e Índice de Peligro basada en las tablas oficiales del ICONA (1993).">
+    <link rel="stylesheet" href="style.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="app-header no-print">
+        <div class="header-container">
+            <div class="logo-area">
+                <span class="fire-icon">🔥</span>
+                <div>
+                    <h1>Calculadora HCFM</h1>
+                    <p class="subtitle">Método de Estimación Oficial (ICONA 1993)</p>
+                </div>
+            </div>
+            <div class="header-info">
+                <span id="solar-time-status" class="status-badge">Hora solar automática activa</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="app-main container">
+        <!-- Columna de Entradas (Formulario) -->
+        <section class="panel input-panel no-print">
+            <h2 class="panel-title">1. Parámetros del Incidente</h2>
+            <form id="hcfm-form">
+                <!-- Fecha y Hora -->
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="input-date">Fecha</label>
+                        <input type="date" id="input-date" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="input-time">Hora Local</label>
+                        <input type="time" id="input-time" required>
+                    </div>
+                </div>
+
+                <!-- Meteorología -->
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="input-temp">Temperatura (ºC)</label>
+                        <input type="number" id="input-temp" min="-10" max="60" step="0.1" value="25" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="input-rh">Humedad Relativa (%)</label>
+                        <input type="number" id="input-rh" min="0" max="100" step="1" value="40" required>
+                    </div>
+                </div>
+                <div class="form-group slider-group">
+                    <input type="range" id="input-rh-slider" min="0" max="100" value="40" class="range-slider">
+                </div>
+
+                <!-- Topografía y Exposición -->
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="input-aspect">Exposición (Orientación)</label>
+                        <select id="input-aspect">
+                            <option value="S">Sur (Solana - Hemisferio N.)</option>
+                            <option value="E">Este</option>
+                            <option value="O">Oeste (O/W)</option>
+                            <option value="N">Norte (Umbría - Hemisferio N.)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="input-slope">Pendiente</label>
+                        <select id="input-slope">
+                            <option value="flat_gentle">Suave o Llano (0 - 30%)</option>
+                            <option value="steep">Pronunciada (> 30%)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Solana / Umbría (Sombreado %) -->
+                <div class="form-group">
+                    <div class="label-with-value">
+                        <label for="input-shading">Sombreado (Solana - Umbría)</label>
+                        <span id="shading-value" class="slider-badge">40% Sombra</span>
+                    </div>
+                    <input type="range" id="input-shading" min="0" max="100" value="40" class="range-slider">
+                    <div class="slider-labels">
+                        <span>Solana total (0%)</span>
+                        <span id="shading-category-badge" class="badge badge-exposed">Expuesto (&le;50%)</span>
+                        <span>Umbría total (100%)</span>
+                    </div>
+                </div>
+
+                <!-- Viento para Índice de Peligro -->
+                <h2 class="panel-subtitle">Parámetros del Viento (Tabla A.7)</h2>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="input-wind">Velocidad del Viento (km/h)</label>
+                        <input type="number" id="input-wind" min="0" max="150" step="1" value="15" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="input-wind-type">Tipo de Viento</label>
+                        <select id="input-wind-type">
+                            <option value="normal">Vientos no terrales (Interior)</option>
+                            <option value="terral">Viento terral (Áreas costeras)</option>
+                        </select>
+                    </div>
+                </div>
+            </form>
+        </section>
+
+        <!-- Columna de Resultados -->
+        <section class="panel results-panel" id="results-section">
+            <h2 class="panel-title no-print">2. Resultados del Cálculo</h2>
+            
+            <!-- Cabecera de reporte para impresión -->
+            <div class="print-header only-print">
+                <h2>INFORME TÉCNICO DE RIESGO DE INCENDIO FORESTAL</h2>
+                <p><strong>Metodología:</strong> Tablas Oficiales del ICONA (1993)</p>
+                <div class="print-meta-grid">
+                    <div><strong>Fecha del Incidente:</strong> <span id="print-date">-</span></div>
+                    <div><strong>Hora Local:</strong> <span id="print-time">-</span></div>
+                    <div><strong>Hora Solar Calculada:</strong> <span id="print-solar-time">-</span></div>
+                    <div><strong>Ajuste Horario:</strong> <span id="print-dst-status">-</span></div>
+                    <div><strong>Temperatura:</strong> <span id="print-temp">-</span> ºC</div>
+                    <div><strong>Humedad Relativa:</strong> <span id="print-rh">-</span> %</div>
+                    <div><strong>Exposición/Pendiente:</strong> <span id="print-terrain">-</span></div>
+                    <div><strong>Sombreado:</strong> <span id="print-shading">-</span></div>
+                    <div><strong>Viento:</strong> <span id="print-wind">-</span> (<span id="print-wind-type">-</span>)</div>
+                </div>
+            </div>
+
+            <!-- Bloque de Resultados Destacados -->
+            <div class="results-grid">
+                <!-- Humedad Fina Muerta -->
+                <div class="result-card" id="card-hcfm">
+                    <span class="card-icon">💧</span>
+                    <h3>Humedad Combustible (HCFM)</h3>
+                    <div class="result-value" id="val-hcfm">--%</div>
+                    <p class="result-comment" id="lbl-hcfm">Ingrese parámetros para iniciar</p>
+                </div>
+
+                <!-- Probabilidad de Ignición -->
+                <div class="result-card" id="card-pig">
+                    <span class="card-icon">⚡</span>
+                    <h3>Probabilidad de Ignición</h3>
+                    <div class="result-value" id="val-pig">--%</div>
+                    <p class="result-comment" id="lbl-pig">Estimación de inflamabilidad</p>
+                </div>
+
+                <!-- Índice de Peligro -->
+                <div class="result-card full-width" id="card-danger">
+                    <span class="card-icon">⚠️</span>
+                    <h3>Índice de Peligro</h3>
+                    <div class="result-value text-large" id="val-danger">--</div>
+                    <p class="result-comment text-justify" id="lbl-danger">Evaluación global del riesgo y medidas</p>
+                </div>
+            </div>
+
+            <!-- Botones de Acción -->
+            <div class="action-buttons no-print">
+                <button type="button" id="btn-save" class="btn btn-primary">💾 Guardar en Historial</button>
+                <button type="button" id="btn-print" class="btn btn-secondary">🖨️ Imprimir / Exportar PDF</button>
+            </div>
+
+            <!-- Trazabilidad del Cálculo (Cómo se calculó) -->
+            <div class="calculation-trace">
+                <h3 class="trace-title">Trazabilidad del Cálculo Técnico</h3>
+                <ol class="trace-list" id="trace-container">
+                    <li>Rellene el formulario para visualizar los pasos técnicos de la tabla.</li>
+                </ol>
+            </div>
+        </section>
+    </main>
+
+    <!-- Historial de Registros -->
+    <section class="container no-print">
+        <div class="panel history-panel">
+            <div class="panel-header-flex">
+                <h2 class="panel-title">3. Historial de Cálculos Guardados</h2>
+                <div class="header-actions">
+                    <button type="button" id="btn-export-csv" class="btn btn-small btn-secondary">📥 Exportar CSV</button>
+                    <button type="button" id="btn-clear-history" class="btn btn-small btn-danger">🗑️ Borrar Todo</button>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="history-table" id="table-history">
+                    <thead>
+                        <tr>
+                            <th>Fecha/Hora Local</th>
+                            <th>Hora Solar</th>
+                            <th>Meteo (T/HR)</th>
+                            <th>Orientación/Pend.</th>
+                            <th>Sombreado</th>
+                            <th>HCFM</th>
+                            <th>Ignición</th>
+                            <th>Peligro (Viento)</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-tbody">
+                        <tr>
+                            <td colspan="9" class="text-center">No hay registros guardados en este navegador.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- Sección de Referencia Científica -->
+    <footer class="app-footer container no-print">
+        <div class="panel info-panel">
+            <h2 class="panel-title">Fundamentos del Cálculo (ICONA)</h2>
+            <div class="info-content-grid">
+                <div>
+                    <h3>Humedad del Combustible Fino Muerto (HCFM)</h3>
+                    <p>Corresponde a los combustibles leñosos finos de menos de 6 mm de diámetro (equivalentes al combustible de 1 hora de tiempo de retardo en el sistema norteamericano). Son extremadamente sensibles a los cambios ambientales de temperatura y humedad.</p>
+                    <p>El procedimiento consta de:</p>
+                    <ul>
+                        <li><strong>Día (08:00 - 20:00 Solar):</strong> Se determina la <em>Humedad Básica</em> (Tabla A.1) y se le suma una <em>Corrección Estacional</em> (Tablas A.2, A.3, A.4) en función de la exposición de la ladera, pendiente, sombreado y hora solar del día.</li>
+                        <li><strong>Noche (20:00 - 08:00 Solar):</strong> Se utiliza directamente la <em>Humedad Básica de Noche</em> (Tabla A.5) sin aplicar correcciones.</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3>Probabilidad de Ignición (Tabla A.6)</h3>
+                    <p>Estima la probabilidad (de 0% a 100%) de que una brasa o pavesa encendida, al entrar en contacto con el combustible vegetal fino y seco en el suelo, inicie un fuego activo. Depende críticamente del sombreado solar, la temperatura ambiente y la humedad final calculada del combustible (HCFM).</p>
+                    <h3>Índice de Peligro (Tabla A.7)</h3>
+                    <p>Clasifica la emergencia en 4 niveles (<strong>Prealerta, Alerta, Alarma, Alarma Extrema</strong>). Este índice cruza la facilidad de encendido (PIG) con la velocidad del viento, variando significativamente en áreas costeras si el viento es de carácter <em>terral</em> (viento descendente seco proveniente del interior de la tierra).</p>
+                </div>
+            </div>
+            <div class="footer-copyright">
+                <p>Calculadora HCFM - Desarrollada para uso técnico de campo y peritaje de incendios forestales. 2026.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>
